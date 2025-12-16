@@ -54,9 +54,9 @@
                     <div class="h4 fw-bold text-{{ risk.conf_badge }} mb-0 me-2">{{ risk.conf_level }}</div>
                 </div>
                 <div class="progress mb-2" style="height: 6px;">
-                    {% if risk.conf_level == 'High' %}
+                    {% if risk.conf_level == 'Tinggi' %}
                     <div class="progress-bar bg-success" role="progressbar" style="width: 90%"></div>
-                    {% elif risk.conf_level == 'Medium' %}
+                    {% elif risk.conf_level == 'Sedang' %}
                     <div class="progress-bar bg-primary" role="progressbar" style="width: 60%"></div>
                     {% else %}
                     <div class="progress-bar bg-secondary" role="progressbar" style="width: 30%"></div>
