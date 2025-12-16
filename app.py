@@ -414,4 +414,12 @@ if __name__ == '__main__':
     
     print("🚀 Starting Air Quality Warning System...")
     load_artifacts()
-    app.run(debug=True, port=5000)
+    
+    # Get port from environment variable (default to 5000 for local dev)
+    port = int(os.environ.get('PORT', 5000))
+    
+    # Debug mode should be False in production
+    # In a real app, use an env var like FLASK_ENV or DEBUG
+    is_debug = os.environ.get('FLASK_ENV', 'development') == 'development'
+    
+    app.run(host='0.0.0.0', port=port, debug=is_debug)
