@@ -1,0 +1,55 @@
+
+/* Academic Minimalist Theme */
+body {
+    font-family: 'Inter', sans-serif;
+    color: #333;
+    background-color: #f8f9fa;
+}
+
+.letter-spacing-2 {
+    letter-spacing: 2px;
+}
+
+.card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card-hover:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.05) !important;
+}
+
+/* Badge Colors based on AQI (US EPA Standards approximation for color) */
+.bg-success {
+    background-color: #2ecc71 !important; /* Green */
+}
+.bg-warning {
+    background-color: #f1c40f !important; /* Yellow */
+    color: #333;
+}
+.bg-orange {
+    background-color: #e67e22 !important; /* Orange */
+    color: white;
+}
+.bg-danger {
+    background-color: #e74c3c !important; /* Red */
+}
+
+/* Map custom classes since Bootstrap doesn't have bg-orange */
+.text-bg-orange {
+    background-color: #e67e22;
+    color: white;
+}
+
+/* Footer */
+footer {
+    background-color: #ffffff;
+}
+
+.bg-light-gray {
+    background-color: #fafafa;
+}
+
+.navbar-brand {
+    font-size: 1.25rem;
+}

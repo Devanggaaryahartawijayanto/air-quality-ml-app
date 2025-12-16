@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-12 text-center">
+        <h1 class="display-6 fw-bold text-dark">Prakiraan Kualitas Udara Jakarta</h1>
+        <p class="text-muted text-uppercase small letter-spacing-2">Sistem Peringatan Dini Berbasis Machine Learning</p>
+    </div>
+</div>
+
+
+<!-- Decision Support (New Feature) -->
+<div class="row g-4 mb-4">
+    <!-- Risk Assessment -->
+    <div class="col-md-4">
+        <div class="card h-100 border-0 shadow-sm border-start border-5 border-{{ risk.color }}">
+            <div class="card-body">
+                <h6 class="text-muted text-uppercase small mb-2">Tingkat Risiko Besok</h6>
+                <div class="d-flex align-items-center mb-2">
+                    <span class="display-6 fw-bold text-{{ risk.color }} me-3">{{ risk.level }}</span>
+                    {% if risk.trend_dir == 'Rising' %}
+                    <span class="badge bg-danger">↗ Naik</span>
+                    {% elif risk.trend_dir == 'Falling' %}
+                    <span class="badge bg-success">↘ Turun</span>
+                    {% else %}
+                    <span class="badge bg-secondary">→ Stabil</span>
+                    {% endif %}
+                </div>
+                <p class="mb-0 small text-muted">
+                    Berdasarkan prediksi PM2.5 dan tren terkini.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recommendation -->
+    <div class="col-md-4">
+        <div class="card h-100 border-0 shadow-sm">
+            <div class="card-body">
+                <h6 class="text-muted text-uppercase small mb-2">Rekomendasi</h6>
+                <p class="card-text fw-medium text-dark mb-0" style="font-size: 1.1rem;">
+                    {{ risk.recommendation }}
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Model Confidence -->
+    <div class="col-md-4">
+        <div class="card h-100 border-0 shadow-sm">
+            <div class="card-body">
+                <h6 class="text-muted text-uppercase small mb-2">Keyakinan Model</h6>
+                <div class="d-flex align-items-center mb-2">
+                    <div class="h4 fw-bold text-{{ risk.conf_badge }} mb-0 me-2">{{ risk.conf_level }}</div>
+                </div>
+                <div class="progress mb-2" style="height: 6px;">
+                    {% if risk.conf_level == 'High' %}
+                    <div class="progress-bar bg-success" role="progressbar" style="width: 90%"></div>
+                    {% elif risk.conf_level == 'Medium' %}
+                    <div class="progress-bar bg-primary" role="progressbar" style="width: 60%"></div>
+                    {% else %}
+                    <div class="progress-bar bg-secondary" role="progressbar" style="width: 30%"></div>
+                    {% endif %}
+                </div>
+                <p class="small text-muted mb-0">
+                    {{ risk.conf_desc }}
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- Scenario Simulator (New Feature) -->
+<div class="row mb-5">
+    <div class="col-md-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold text-uppercase text-muted small">Simulator Skenario (H+1, H+3, H+7)</h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <!-- Control Panel -->
+                    <div class="col-md-4 mb-4 mb-md-0 border-end">
+                        <h6 class="fw-bold mb-3">Pilih Skenario:</h6>
+                        <form action="/" method="GET">
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="radio" name="scenario" id="sc_normal"
+                                    value="normal" {% if sim.active_scenario=='normal' %}checked{% endif %}>
+                                <label class="form-check-label" for="sc_normal">
+                                    Kondisi Normal (Baseline)
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="radio" name="scenario" id="sc_increase"
+                                    value="increase" {% if sim.active_scenario=='increase' %}checked{% endif %}>
+                                <label class="form-check-label" for="sc_increase">
+                                    Peningkatan Polusi (+10%)
+                                </label>
+                            </div>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="radio" name="scenario" id="sc_decrease"
+                                    value="decrease" {% if sim.active_scenario=='decrease' %}checked{% endif %}>
+                                <label class="form-check-label" for="sc_decrease">
+                                    Penurunan Polusi (-10%)
+                                </label>
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-sm w-100">
+                                <i class="bi bi-play-fill"></i> Simulasikan
+                            </button>
+                        </form>
+                        <div class="mt-3 p-2 bg-light rounded border small text-muted">
+                            <i class="bi bi-shield-check me-1"></i> {{ sim.safeguard }}
+                        </div>
+                    </div>
+
+                    <!-- Results Panel -->
+                    <div class="col-md-8">
+                        <h6 class="fw-bold mb-3">Hasil Simulasi: <span class="text-primary">{{ sim.label }}</span></h6>
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle">
+                                <thead class="table-light small text-uppercase">
+                                    <tr>
+                                        <th>Horizon</th>
+                                        <th>Baseline</th>
+                                        <th>Simulasi</th>
+                                        <th>Delta (Δ)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for res in sim.results %}
+                                    <tr>
+                                        <td class="fw-bold">{{ res.day }}</td>
+                                        <td>{{ "%.1f"|format(res.baseline) }}</td>
+                                        <td class="fw-bold">{{ "%.1f"|format(res.simulated) }}</td>
+                                        <td>
+                                            {% if res.delta > 0.1 %}
+                                            <span class="text-danger fw-bold">+{{ "%.1f"|format(res.delta) }} ↗</span>
+                                            {% elif res.delta < -0.1 %} <span class="text-success fw-bold">{{
+                                                "%.1f"|format(res.delta) }} ↘</span>
+                                                {% else %}
+                                                <span class="text-muted">-</span>
+                                                {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Forecast Cards -->
+<div class="row g-4 mb-5">
+    {% for fc in forecasts %}
+    <div class="col-md-4">
+        <div class="card h-100 border-0 shadow-sm card-hover">
+            <div class="card-header bg-white border-bottom-0 pt-4 pb-0 text-center">
+                <h6 class="text-muted text-uppercase mb-1">{{ fc.label }}</h6>
+                <div class="fw-bold text-dark h5 mb-0">{{ fc.date }}</div>
+            </div>
+            <div class="card-body text-center">
+                <div class="display-4 fw-bold mb-2">{{ "%.1f"|format(fc.value) }}</div>
+                <div class="small text-muted mb-3">Konsentrasi PM2.5 (µg/m³)</div>
+
+                <span class="badge rounded-pill px-3 py-2 bg-{{ fc.badge_color }} mb-2">
+                    {{ fc.category }}
+                </span>
+
+                <div class="mt-3 small text-muted border-top pt-3">
+                    Interval Kepercayaan (95%):<br>
+                    <strong>{{ "%.1f"|format(fc.lower) }} - {{ "%.1f"|format(fc.upper) }}</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+
+
+
+<!-- Visualization Section -->
+<div class="row">
+    <div class="col-md-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0 fw-bold">Tren Historis & Prediksi Masa Depan</h5>
+            </div>
+            <div class="card-body text-center bg-light-gray">
+                <img src="{{ url_for('static', filename='plots/forecast_plot.png') }}" alt="Forecast Plot"
+                    class="img-fluid rounded shadow-sm" style="max-height: 500px;">
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
