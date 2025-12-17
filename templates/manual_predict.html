@@ -19,6 +19,9 @@
                 </button>
             </div>
             <div class="card-body">
+                <!-- Alert Container -->
+                <div id="live-data-alert"></div>
+
                 <form method="POST" action="/manual">
                     <div class="mb-3">
                         <label for="date" class="form-label small text-muted text-uppercase fw-bold">Tanggal
@@ -119,6 +122,10 @@
     async function fetchLiveData() {
         const btn = document.querySelector('button[onclick="fetchLiveData()"]');
         const originalText = btn.innerHTML;
+        const alertContainer = document.getElementById('live-data-alert');
+
+        // Clear previous alerts
+        alertContainer.innerHTML = '';
 
         try {
             btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Loading...';
@@ -141,11 +148,23 @@
             const today = new Date().toISOString().split('T')[0];
             document.getElementById('date').value = today;
 
-            alert('Data berhasil diambil dari Open-Meteo API!');
+            // Success Alert (Bootstrap)
+            alertContainer.innerHTML = `
+                <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
+                    <i class="bi bi-check-circle-fill me-2"></i> <strong>Berhasil!</strong> Data terkini dari Open-Meteo telah dimuat.
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            `;
 
         } catch (error) {
             console.error('Error:', error);
-            alert('Gagal mengambil data live: ' + error.message);
+            // Error Alert (Bootstrap)
+            alertContainer.innerHTML = `
+                <div class="alert alert-danger alert-dismissible fade show shadow-sm" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i> <strong>Gagal!</strong> Terjadi kesalahan saat mengambil data: ${error.message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            `;
         } finally {
             btn.innerHTML = originalText;
             btn.disabled = false;
