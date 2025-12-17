@@ -21,8 +21,12 @@ Aplikasi web berbasis Flask ini dirancang untuk memberikan prakiraan kualitas ud
     *   **Analisis Sensitivitas**: Menyajikan perbandingan antara prakiraan baseline dan hasil simulasi untuk H+1, H+3, dan H+7.
     *   **Kontrol Aman**: Input simulasi dibatasi pada skenario yang telah ditentukan untuk menjaga validitas model.
 
+4.  **Prediksi Manual (Custom Forecast)**
+    *   **Input User**: Memungkinkan pengguna memasukkan nilai parameter udara (PM10, SO2, CO, dll) secara manual.
+    *   **Live Data**: Mengambil data real-time Jakarta (via Open-Meteo) untuk mengisi form secara otomatis sebagai referensi.
+    *   **Analisis Instan**: Memberikan prediksi PM2.5 dan rekomendasi kesehatan berdasarkan input tersebut.
 
-4.  **Wawasan Model (Model Insights)**
+5.  **Wawasan Model (Model Insights)**
     *   Halaman khusus untuk melihat performa model (MAE, R2).
     *   Visualisasi validasi aktual vs prediksi dan distribusi error.
 

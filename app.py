@@ -4,12 +4,19 @@ import sys
 import pickle
 import pandas as pd
 import numpy as np
+import requests
 from flask import Flask, render_template, request, jsonify
+import json
 import matplotlib
 matplotlib.use('Agg')  # Use non-interactive backend
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+import open_meteo_client
 from datetime import timedelta
+import plotly
+import plotly.graph_objects as go
+import plotly.utils
+
 
 # Initialize Flask
 app = Flask(__name__)
@@ -159,6 +166,112 @@ def plot_forecast(history_df, forecasts):
     plt.savefig(os.path.join(PLOT_DIR, 'forecast_plot.png'), dpi=100)
     plt.close()
 
+def generate_plotly_json(history_df, forecasts):
+    """Generate Plotly JSON for interactive chart using Graph Objects."""
+    # 1. Historical Data (Last 30 days)
+    hist = history_df.iloc[-30:]
+    
+    fig = go.Figure()
+    
+    # Add Historical Trace
+    fig.add_trace(go.Scatter(
+        x=hist['date'],
+        y=hist['pm_duakomalima'],
+        mode='lines',
+        name='Historis',
+        line=dict(color='#2c3e50', width=3),
+        hovertemplate='%{x|%d %b %Y}<br>PM2.5: %{y:.1f} µg/m³<extra></extra>'
+    ))
+    
+    # 2. Forecast Data
+    f_dates = [f['date_obj'] for f in forecasts]
+    f_values = [f['value'] for f in forecasts]
+    
+    # Connect lines: Prepend last historical point to forecast
+    connect_x = [hist['date'].iloc[-1]] + f_dates
+    connect_y = [hist['pm_duakomalima'].iloc[-1]] + f_values
+    
+    # Add Forecast Trace
+    fig.add_trace(go.Scatter(
+        x=connect_x,
+        y=connect_y,
+        mode='lines+markers',
+        name='Prakiraan',
+        line=dict(color='#e67e22', width=3, dash='dash'),
+        marker=dict(size=8, symbol='circle'),
+        hovertemplate='%{x|%d %b %Y}<br>Prediksi: %{y:.1f} µg/m³<extra></extra>'
+    ))
+    
+    # 3. Add Confidence Intervals (if available in forecast objects)
+    # Extract upper and lower bounds if they exist in forecasts
+    if 'upper' in forecasts[0] and 'lower' in forecasts[0]:
+        upper_bound = [hist['pm_duakomalima'].iloc[-1]] + [f['upper'] for f in forecasts]
+        lower_bound = [hist['pm_duakomalima'].iloc[-1]] + [f['lower'] for f in forecasts]
+        
+        # Upper Bound (transparent line)
+        fig.add_trace(go.Scatter(
+            x=connect_x,
+            y=upper_bound,
+            mode='lines',
+            line=dict(width=0),
+            showlegend=False,
+            hoverinfo='skip'
+        ))
+        
+        # Lower Bound (filled to upper)
+        fig.add_trace(go.Scatter(
+            x=connect_x,
+            y=lower_bound,
+            mode='lines',
+            fill='tonexty',
+            fillcolor='rgba(230, 126, 34, 0.1)', # Transparent orange
+            line=dict(width=0),
+            name='Interval Kepercayaan (95%)',
+            hoverinfo='skip'
+        ))
+
+    # 4. Improved Layout
+    fig.update_layout(
+        title=dict(
+            text='<b>Tren Historis & Prakiraan Kualitas Udara (PM2.5)</b>',
+            y=0.95,
+            x=0.5,
+            xanchor='center',
+            yanchor='top',
+            font=dict(size=18, family='Arial')
+        ),
+        xaxis=dict(
+            title='Tanggal',
+            showgrid=True,
+            gridcolor='rgba(0,0,0,0.05)',
+            tickformat='%d %b'
+        ),
+        yaxis=dict(
+            title='Konsentrasi PM2.5 (µg/m³)',
+            showgrid=True,
+            gridcolor='rgba(0,0,0,0.05)',
+            zeroline=False
+        ),
+        legend=dict(
+            orientation='h',
+            yanchor='bottom',
+            y=1.02,
+            xanchor='right',
+            x=1
+        ),
+        plot_bgcolor='white',
+        paper_bgcolor='white',
+        margin=dict(l=20, r=20, t=60, b=20),
+        hovermode='x unified'
+    )
+    
+    # Add shapes/zones for air quality categories (Optional visual guide)
+    # Green (0-50), Yellow (50-100), Orange (100-150), Red (>150)
+    # Using semi-transparent rectangles in background could be nice but might clutter.
+    # We will stick to clean lines for now as per "friend's" implied simple import.
+    
+    return json.dumps(fig.to_dict(), cls=plotly.utils.PlotlyJSONEncoder)
+
 def plot_insights(history_df):
     """Generate insight plots."""
     # 1. Recent Actual vs Predicted (Simulated on history)
@@ -247,6 +360,11 @@ def preprocess_and_load_data():
             
     # Forward fill to handle missing values for smoothness in plots/context
     df[pollutants] = df[pollutants].ffill()
+
+    # Aggregate by Date (Mean of all stations)
+    # This fixes the issue where multiple stations create duplicate date entries
+    df = df.groupby('date')[pollutants].mean().reset_index()
+    df = df.sort_values('date')
     
     return df
 
@@ -384,12 +502,16 @@ def index():
         }
             
         # Generate plot (Baseline only to avoid clutter)
-        plot_forecast(df, baseline_forecasts)
+        plot_forecast(df, baseline_forecasts) # Legecy matplotlib restored for static image
+        
+        # Generate Plotly JSON
+        plot_json_str = generate_plotly_json(df, baseline_forecasts)
         
         return render_template('index.html', 
                              forecasts=baseline_forecasts, 
                              risk=risk_data, 
-                             sim=simulation_data)
+                             sim=simulation_data,
+                             plot_json=plot_json_str)
         
     except Exception as e:
         import traceback
@@ -407,6 +529,97 @@ def insight():
         return render_template('insight.html', metadata=metadata)
     except Exception as e:
         return f"Insight Error: {str(e)}"
+
+@app.route('/manual', methods=['GET', 'POST'])
+def manual_predict():
+    if model is None:
+        load_artifacts()
+        
+    result = None
+    error = None
+    
+    if request.method == 'POST':
+        try:
+            # 1. Get Form Data
+            date_str = request.form.get('date')
+            pm10 = float(request.form.get('pm_sepuluh'))
+            so2 = float(request.form.get('sulfur_dioksida'))
+            co = float(request.form.get('karbon_monoksida'))
+            o3 = float(request.form.get('ozon'))
+            no2 = float(request.form.get('nitrogen_dioksida'))
+            max_val = float(request.form.get('max'))
+            
+            # 2. Process Date & Generate Features
+            target_date = pd.to_datetime(date_str)
+            
+            row = {}
+            # Pollutants
+            row['pm_sepuluh'] = pm10
+            row['sulfur_dioksida'] = so2
+            row['karbon_monoksida'] = co
+            row['ozon'] = o3
+            row['nitrogen_dioksida'] = no2
+            row['max'] = max_val
+            
+            # Time Features
+            # ['periode_data' 'bulan' 'year' 'day_of_week' 'month' 'day_of_year' 
+            #  'quarter' 'is_weekend' 'season' 'is_rainy_season']
+            row['periode_data'] = int(target_date.strftime('%Y%m'))
+            row['bulan'] = target_date.month
+            row['year'] = target_date.year
+            row['day_of_week'] = target_date.dayofweek
+            row['month'] = target_date.month
+            row['day_of_year'] = target_date.dayofyear
+            row['quarter'] = target_date.quarter
+            row['is_weekend'] = 1 if target_date.dayofweek >= 5 else 0
+            row['season'] = (target_date.month % 12 + 3) // 3
+            row['is_rainy_season'] = 1 if (target_date.month >= 10 or target_date.month <= 3) else 0
+            
+            # Create DataFrame
+            X_input = pd.DataFrame([row])
+            
+            # Reorder columns to match model
+            if hasattr(model, 'feature_names_in_'):
+                X_input = X_input[model.feature_names_in_]
+                
+            # 3. Predict
+            pred_val = float(model.predict(X_input)[0])
+            
+            # 4. Interpret Result
+            cat, badge = get_air_quality_category(pred_val)
+            
+            # Get last actual for trend (optional, just use pred vs 0 or some default if unknown)
+            # For manual prediction, we might not have 'last_actual' context easily available 
+            # without querying the DB/CSV. We'll use the input PM10 as a proxy or 0 for trend calc 
+            # if we want to reuse the function, or simplified logic.
+            # Let's load historical to be safe for 'last_actual' context if possible, 
+            # OR just calculate risk based on single point.
+            
+            risk_res = calculate_risk_assessment(pred_val, residual_std*2, pred_val) # Trend = 0
+            
+            result = {
+                'value': pred_val,
+                'category': cat,
+                'badge_color': badge,
+                'recommendation': risk_res['recommendation']
+            }
+            
+        except Exception as e:
+            error = f"Gagal melakukan prediksi: {str(e)}"
+            
+    return render_template('manual_predict.html', result=result, error=error)
+
+@app.route('/api/live-data')
+def get_live_data():
+    """
+    Fetch live air quality data for Jakarta using Open-Meteo Client.
+    """
+    data = open_meteo_client.fetch_jakarta_air_quality()
+    
+    if data:
+        return jsonify(data)
+    else:
+        return jsonify({'error': 'Gagal mengambil data dari Open-Meteo'}), 500
 
 if __name__ == '__main__':
     # Ensure directories exist
