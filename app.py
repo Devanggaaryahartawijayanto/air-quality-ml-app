@@ -361,10 +361,8 @@ def preprocess_and_load_data():
     # Forward fill to handle missing values for smoothness in plots/context
     df[pollutants] = df[pollutants].ffill()
 
-    # Aggregate by Date (Mean of all stations)
-    # This fixes the issue where multiple stations create duplicate date entries
-    df = df.groupby('date')[pollutants].mean().reset_index()
-    df = df.sort_values('date')
+    # Forward fill to handle missing values for smoothness in plots/context
+    df[pollutants] = df[pollutants].ffill()
     
     return df
 
